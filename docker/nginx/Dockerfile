@@ -1,6 +1,6 @@
 FROM nginx:latest
 
-LABEL maintainer="Mudassar Ali <mudassar.ali@myworkpapers.com>"
+LABEL maintainer="Mudassar Ali <mudassar.ali@gmail.com>"
 
 # Copy Scripts
 COPY ./start.sh /start.sh

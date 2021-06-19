@@ -1,7 +1,7 @@
 ARG PHP_VERSION=7.4
 FROM php:${PHP_VERSION}-fpm
 
-LABEL maintainer="Mudassar Ali <mudassar.ali@myworkpapers.com>"
+LABEL maintainer="Mudassar Ali <mudassar.ali@gmail.com>"
 
 ARG INSTALL_XDEBUG=false
 ARG XDEBUG_VERSION=2.5.5
