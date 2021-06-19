@@ -1,0 +1,79 @@
+version: '3'
+#Docker Networks
+networks:
+  frontend:
+    external: true
+  backend:
+    external: false
+
+services:
+  #PHP Service
+  app:
+    build:
+      context: ./php-fpm
+      dockerfile: Dockerfile
+      args:
+        - PHP_VERSION=7.4
+        - XDEBUG_VERSION=3.0.0
+        - INSTALL_XDEBUG=true
+    container_name: app
+    ports:
+      - "9000"
+    volumes:
+      - ${SOURCE_DIR}${CODE_PATH}:/var/www
+    depends_on:
+      - db
+    environment:
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
+    networks:
+      - backend
+
+  #Nginx Service
+  nginx:
+    build:
+      context: ./nginx
+      args:
+        - PHP_UPSTREAM_CONTAINER=app
+        - PHP_UPSTREAM_PORT=9000
+    container_name: webserver
+    volumes:
+      - ${SOURCE_DIR}${CODE_PATH}:/var/www
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+      - backend
+
+  #MySQL Service
+  db:
+    image: mysql:8.0.21
+    container_name: db
+    cap_add:
+      - SYS_NICE  # CAP_SYS_NICE
+    networks:
+      - backend
+    ports:
+      - '3306:3306'
+    volumes:
+      - ${SOURCE_DIR}${DB_DATA_DIR}:/var/lib/mysql
+    command:
+      [
+          '--sql-mode=NO_ENGINE_SUBSTITUTION',
+          '--character-set-server=utf8mb4',
+          '--collation-server=utf8mb4_unicode_ci',
+          '--max-allowed-packet=210763776',
+          '--default-authentication-plugin=mysql_native_password',
+          '--lower_case_table_names=1'
+      ]
+    environment:
+      - MYSQL_DATABASE=${DATABASE}
+      - MYSQL_PASSWORD=${DATABASE_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DATABASE_PASSWORD}
+    labels:
+      - 'traefik.enable=false'
+
