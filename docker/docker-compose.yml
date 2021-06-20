@@ -1,5 +1,5 @@
 version: '3'
-#Docker Networks
+
 networks:
   frontend:
     external: true
@@ -7,7 +7,6 @@ networks:
     external: false
 
 services:
-  #PHP Service
   app:
     build:
       context: ./php-fpm
@@ -30,7 +29,6 @@ services:
     networks:
       - backend
 
-  #Nginx Service
   nginx:
     build:
       context: ./nginx
@@ -49,7 +47,6 @@ services:
       - frontend
       - backend
 
-  #MySQL Service
   db:
     image: mysql:8.0.21
     container_name: db
@@ -74,6 +71,5 @@ services:
       - MYSQL_DATABASE=${DATABASE}
       - MYSQL_PASSWORD=${DATABASE_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${DATABASE_PASSWORD}
-    labels:
-      - 'traefik.enable=false'
+
 

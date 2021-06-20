@@ -2,9 +2,6 @@ FROM nginx:latest
 
 LABEL maintainer="Mudassar Ali <mudassar.ali@gmail.com>"
 
-# Copy Scripts
-COPY ./start.sh /start.sh
-
 ARG PHP_UPSTREAM_CONTAINER=app
 ARG PHP_UPSTREAM_PORT=9000
 
@@ -19,4 +16,3 @@ COPY nginx.conf /etc/nginx/
 COPY sites/default.conf /etc/nginx/sites-available/
 
 EXPOSE 80
-

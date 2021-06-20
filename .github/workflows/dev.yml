@@ -1,0 +1,110 @@
+name: Dev Build and deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Confirm deployment'
+        required: true
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: "MWP Build"
+    env:
+      extensions: mcrypt, curl, gd, intl, oauth, mysql, imagick, zip
+      php-versions: '7.4'
+      key: deocker-demo-php
+      ECR_REGISTRY: 802365213558.dkr.ecr.eu-west-2.amazonaws.com
+      ECR_REPOSITORY: nginx-php-app
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php-versions }}
+          extensions: ${{ env.extensions }}
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install composer dependencies
+        if: steps.composer-cache.outputs.cache-hit != 'true'
+        run: composer install --prefer-dist
+
+      - name: Login to ECR
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_TOKEN }}
+          password: ${{ secrets.DOCKER_USERNAME }}
+
+      # And make it available for the builds
+      - name: Build, tag, and push nginx base
+        env:
+          REGISTRY: mudiman
+          REPOSITORY: docker-demo-nginx-app
+          IMAGE_TAG: $(echo $GITHUB_SHA | head -c10)
+        run: |
+          cd ${{ github.workspace }}/deploy/
+          docker build . --file nginx.Dockerfile  $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Build, tag, and push app base
+        env:
+          REGISTRY: mudiman
+          REPOSITORY: docker-demo-app-app
+          IMAGE_TAG: $(echo $GITHUB_SHA | head -c10)
+        run: |
+          cd ${{ github.workspace }}/deploy/
+          docker build . --file app.Dockerfile  $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+
+  deploy-app:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build the deployment manifest
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: (cd eb.web && ./build-deployment.sh)
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: eu-west-2
+          role-to-assume: ${{ secrets.DEPLOYEE_ROLE }}
+          role-duration-seconds: 1200
+          role-session-name: DockerDemoGithubSession
+
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v14
+        with:
+          aws_access_key: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ env.AWS_SESSION_TOKEN }}
+          application_name: docker-demo
+          environment_name: docker-demo-php-web
+          version_label: app-ver-${{ github.run_number }}
+          use_existing_version_if_available: false
+          wait_for_deployment: false
+          region: eu-west-2
+          deployment_package: eb.web/prophet-deployment.zip
